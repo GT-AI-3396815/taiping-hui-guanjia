@@ -35,7 +35,7 @@ python -m http.server 8917 --bind 127.0.0.1
 ## 回归测试结论（Playwright + Chrome 实测）
 
 - 首页加载渲染：PASS
-- 内容工坊 AI 生成（DeepSeek 接口，模型 deepseek-v4-flash）：PASS
+- 内容工坊 AI 生成（DeepSeek 接口，模型 deepseek-v4-flash-vision-exp）：PASS
 - 太平课堂 PPT 生成并下载：PASS
 - IP打造模块（Slogan / 水印 / 形象指南）：PASS
 - 水印上传照片 → 生成 → 下载 PNG：PASS
@@ -43,6 +43,6 @@ python -m http.server 8917 --bind 127.0.0.1
 
 ## ⚠️ 已知风险（迁移原样保留，建议后续处理）
 
-1. **DeepSeek API Key 硬编码在前端 JS 中**（`assets/index---udaeVd.js` 内明文 `sk-…`）。任何人打开浏览器开发者工具即可窃取该 Key 盗刷额度。当前实测 Key 有效。正式上线前应改为后端代理转发，前端不落 Key。
+1. **DeepSeek API Key 硬编码在前端 JS 中**（`assets/index---udaeVd.js` 内明文）。任何人打开浏览器开发者工具即可窃取该 Key 盗刷额度。2026-09-09 已换新 Key（hi-68fy…）与视觉模型 deepseek-v4-flash-vision-exp，旧 Key sk-9c24…已不再使用。正式上线前应改为后端代理转发，前端不落 Key。
 2. AI 直连 `api.deepseek.com`，浏览器跨域依赖对方 CORS 策略，若其策略收紧会直接影响内容生成功能。
 3. 「今日额度」（100 次/天）仅存于前端本地，清缓存即可绕过，无实际限制力。

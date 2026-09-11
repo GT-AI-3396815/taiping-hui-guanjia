@@ -5,9 +5,294 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='32' fill='%23c9a227'/%3E%3Ctext x='32' y='44' font-size='36' font-family='serif' fill='%23fff' text-anchor='middle'%3E太%3C/text%3E%3C/svg%3E"/>
     <script type="module" crossorigin="" src="./assets/index---udaeVd.js"></script>
     <link rel="stylesheet" crossorigin="" href="./assets/index-BbKmavjm.css"/>
+    <style>
+      #wb-fab{position:fixed;right:14px;bottom:20px;z-index:99998;display:flex;flex-direction:column;gap:9px}
+      #wb-fab button{display:flex;align-items:center;gap:6px;padding:9px 14px;border-radius:999px;border:1px solid rgba(201,168,76,0.4);background:rgba(255,255,255,0.96);color:#8A7020;font-size:13px;cursor:pointer;box-shadow:0 6px 20px rgba(61,50,41,0.16);font-family:inherit}
+      #wb-fab button:hover{background:#C9A84C;color:#fff}
+      #wb-fab button svg{flex:none}
+      @media (max-width:640px){#wb-fab{right:10px;bottom:14px}#wb-fab button{padding:8px 12px;font-size:12px}}
+    </style>
 </head>
   <body>
     <div id="root"></div>
+    <script>
+    (function(){
+    "use strict";
+    /* ================= 太平慧管家 · 增强层 =================
+       合规护栏 / 生成历史 / 展业锦囊 / 内容人设 / 法律信息
+       独立于 React 运行，所有数据仅存本机 localStorage */
 
+    var PERSONAS={
+      pro:{name:"专业稳重",desc:"语言精炼、数据与逻辑导向，专业术语适度，适合面向中高净值客户与正式场合"},
+      warm:{name:"亲和温暖",desc:"口语化、有画面感、像朋友聊天，适合朋友圈与社群日常经营"},
+      lively:{name:"活力热情",desc:"节奏明快、短句为主，适合小红书笔记与短视频脚本"}
+    };
+    function getPersona(){try{return localStorage.getItem("wb_persona")||"warm"}catch(e){return "warm"}}
+    function getHistory(){try{return JSON.parse(localStorage.getItem("wb_history")||"[]")}catch(e){return []}}
+    function setHistory(l){try{localStorage.setItem("wb_history",JSON.stringify(l.slice(0,100)))}catch(e){}}
+    var RISK=/稳赚|保本|零风险|保证收益|无风险|翻倍|躺赚|百分百|只赚不赔|绝对收益|稳涨/;
+    function detectType(u){
+      if(/小红书/.test(u))return"小红书文案";
+      if(/公众号|长文/.test(u))return"公众号长文";
+      if(/朋友圈/.test(u))return"朋友圈文案";
+      if(/口播|短视频|脚本/.test(u))return"短视频口播";
+      if(/PPT|课件|宣讲/.test(u))return"PPT课件大纲";
+      if(/slogan|Slogan|标语|口号/.test(u))return"个人Slogan";
+      if(/形象|穿搭|拍摄/.test(u))return"形象建议";
+      return"内容创作";
+    }
+    function fmtTime(t){var d=new Date(t);function p(n){return(n<10?"0":"")+n}return(d.getMonth()+1)+"月"+d.getDate()+"日 "+p(d.getHours())+":"+p(d.getMinutes())}
+    function escapeHtml(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 
+    var toastTimer=null;
+    function toast(msg){
+      var t=document.getElementById("wb-toast");
+      if(!t){t=document.createElement("div");t.id="wb-toast";t.style.cssText="position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:100001;background:rgba(61,50,41,0.92);color:#F5EFE3;padding:10px 18px;border-radius:999px;font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,0.25);transition:opacity .3s;opacity:0;pointer-events:none;max-width:86vw";document.body.appendChild(t)}
+      t.textContent=msg;t.style.opacity="1";clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.style.opacity="0"},3600);
+    }
+
+    /* ---------- fetch 拦截：人设注入 + 合规追加 + 历史保存 ---------- */
+    var _fetch=window.fetch;
+    window.fetch=function(input,init){
+      try{
+        var url=typeof input==="string"?input:(input&&input.url)||"";
+        var isPost=init&&String(init.method||"POST").toUpperCase()==="POST";
+        if(url.indexOf("api.deepseek.com")>-1&&isPost&&init&&init.body){
+          var body=JSON.parse(init.body);
+          var msgs=body.messages||(body.messages=[]);
+          var userMsg="";
+          for(var i=0;i<msgs.length;i++){if(msgs[i].role==="user"){userMsg+=String(msgs[i].content||"")+" "}}
+          if(RISK.test(userMsg)){setTimeout(function(){toast("合规提醒：主题包含收益承诺类表述，已自动按合规口径生成")},300)}
+          var sys=null;for(var j=0;j<msgs.length;j++){if(msgs[j].role==="system"){sys=msgs[j];break}}
+          var p0=PERSONAS[getPersona()]||PERSONAS.warm;
+          var extra="\n\n## 本次追加要求（最高优先级）\n1. 严禁出现绝对化用语与收益承诺：稳赚、保本、零风险、保证收益、无风险、最高、第一、百分百等。\n2. 若生成长文案（超过100字），文末必须另起一行附加合规提示：以上内容仅供参考，具体保险责任、除外责任及费率以保险合同条款为准。\n3. 内容人设："+p0.name+"——"+p0.desc+"。";
+          if(sys&&typeof sys.content==="string"){sys.content+=extra}else{msgs.unshift({role:"system",content:extra.trim()})}
+          init=Object.assign({},init,{body:JSON.stringify(body)});
+          var p=_fetch.call(window,input,init);
+          var saveHist=function(content){
+            try{
+              if(content&&content.length>2){
+                var list=getHistory();
+                list.unshift({t:Date.now(),type:detectType(userMsg),topic:userMsg.replace(/\s+/g," ").slice(0,60),content:content.slice(0,5000)});
+                setHistory(list);
+              }
+            }catch(e){}
+          };
+          var sseParse=function(txt){
+            var acc="";
+            txt.split("\n").forEach(function(line){
+              if(line.indexOf("data: ")===0){
+                var d=line.slice(6).trim();
+                if(d==="[DONE]")return;
+                try{var m=JSON.parse(d).choices[0].delta.content;if(m)acc+=m}catch(e){}
+              }
+            });
+            return acc;
+          };
+          p.then(function(resp){
+            try{
+              var ct="";
+              try{ct=(resp.headers&&resp.headers.get?resp.headers.get("content-type"):"")||""}catch(e){}
+              if(ct.indexOf("event-stream")>-1){
+                resp.clone().text().then(function(txt){saveHist(sseParse(txt))}).catch(function(){});
+              }else{
+                resp.clone().json().then(function(d){
+                  var c=d&&d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content;
+                  saveHist(c||"");
+                }).catch(function(){});
+              }
+            }catch(e){}
+          }).catch(function(){});
+          return p;
+        }
+      }catch(e){}
+      return _fetch.apply(window,arguments);
+    };
+
+    /* ---------- 通用底部弹层 ---------- */
+    function closeOverlay(){var o=document.getElementById("wb-ov");if(o)o.remove()}
+    function openOverlay(title,bodyNode,maxW){
+      closeOverlay();
+      var ov=document.createElement("div");ov.id="wb-ov";
+      ov.style.cssText="position:fixed;inset:0;background:rgba(40,32,24,0.5);z-index:100000;display:flex;align-items:flex-end;justify-content:center";
+      var panel=document.createElement("div");
+      panel.style.cssText="background:#FDFBF7;width:100%;max-width:"+(maxW||"560px")+";max-height:80vh;border-radius:22px 22px 0 0;box-shadow:0 -12px 50px rgba(0,0,0,0.28);display:flex;flex-direction:column;overflow:hidden";
+      var hd=document.createElement("div");hd.style.cssText="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(201,168,76,0.2)";
+      var tt=document.createElement("strong");tt.textContent=title;tt.style.cssText="font-size:15px;color:#3D3229";
+      var x=document.createElement("button");x.textContent="关闭";x.style.cssText="border:0;background:rgba(201,168,76,0.12);color:#8A7020;font-size:12px;padding:6px 14px;border-radius:999px;cursor:pointer";x.onclick=closeOverlay;
+      hd.appendChild(tt);hd.appendChild(x);
+      var bd=document.createElement("div");bd.style.cssText="overflow-y:auto;padding:18px 20px 28px";
+      bd.appendChild(bodyNode);
+      panel.appendChild(hd);panel.appendChild(bd);ov.appendChild(panel);document.body.appendChild(ov);
+      ov.addEventListener("click",function(e){if(e.target===ov)closeOverlay()});
+    }
+
+    /* ---------- 历史记录 ---------- */
+    function showViewer(it){
+      var box=document.createElement("div");
+      var meta=document.createElement("p");meta.style.cssText="margin:0 0 10px;font-size:12px;color:#A89B8C";meta.textContent=it.type+" · "+fmtTime(it.t);
+      var pre=document.createElement("pre");pre.style.cssText="white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.8;color:#3D3229;background:#fff;border:1px solid rgba(201,168,76,0.2);border-radius:14px;padding:16px;margin:0 0 14px;font-family:inherit";pre.textContent=it.content;
+      var cp=document.createElement("button");cp.textContent="复制全文";cp.style.cssText="width:100%;padding:12px;border:0;border-radius:12px;background:linear-gradient(135deg,#C9A84C,#B8943A);color:#fff;font-size:14px;cursor:pointer";
+      cp.onclick=function(){
+        var done=function(){cp.textContent="已复制";setTimeout(function(){cp.textContent="复制全文"},1600)};
+        if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(it.content).then(done,done)}
+        else{var ta=document.createElement("textarea");ta.value=it.content;document.body.appendChild(ta);ta.select();try{document.execCommand("copy")}catch(e){}ta.remove();done()}
+      };
+      box.appendChild(meta);box.appendChild(pre);box.appendChild(cp);
+      openOverlay("生成详情",box,"620px");
+    }
+    function showHistory(){
+      var list=getHistory();
+      var box=document.createElement("div");
+      if(!list.length){
+        var empty=document.createElement("p");empty.style.cssText="text-align:center;color:#A89B8C;font-size:13px;padding:26px 0;line-height:2";
+        empty.textContent="暂无历史记录。每次生成的内容会自动保存在这里（仅存本机浏览器，不上传服务器，最多保留 100 条）。";
+        box.appendChild(empty);
+      }else{
+        var head=document.createElement("div");head.style.cssText="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px";
+        var cnt=document.createElement("span");cnt.style.cssText="font-size:12px;color:#A89B8C";cnt.textContent="共 "+list.length+" 条（最新在前）";
+        var clr=document.createElement("button");clr.textContent="清空全部";clr.style.cssText="border:1px solid #E8C7C7;background:#fff;color:#C0564F;font-size:12px;padding:5px 12px;border-radius:999px;cursor:pointer";
+        clr.onclick=function(){
+          if(confirm("确定清空全部历史记录吗？此操作不可恢复。")){setHistory([]);showHistory()}
+        };
+        head.appendChild(cnt);head.appendChild(clr);box.appendChild(head);
+        list.forEach(function(it){
+          var item=document.createElement("div");item.style.cssText="background:#fff;border:1px solid rgba(201,168,76,0.25);border-radius:14px;padding:12px 14px;margin-bottom:10px";
+          var top=document.createElement("div");top.style.cssText="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px";
+          var badge=document.createElement("span");badge.style.cssText="font-size:11px;color:#8A7020;background:rgba(201,168,76,0.12);padding:2px 10px;border-radius:999px";badge.textContent=it.type;
+          var tm=document.createElement("span");tm.style.cssText="font-size:11px;color:#A89B8C";tm.textContent=fmtTime(it.t);
+          top.appendChild(badge);top.appendChild(tm);
+          var tp=document.createElement("p");tp.style.cssText="margin:0 0 9px;font-size:13px;color:#3D3229;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical";tp.textContent=it.topic;
+          var row=document.createElement("div");row.style.cssText="display:flex;gap:8px";
+          var b1=document.createElement("button");b1.textContent="查看全文";b1.style.cssText="flex:1;padding:7px;border:1px solid rgba(201,168,76,0.4);background:#fff;color:#8A7020;font-size:12px;border-radius:999px;cursor:pointer";b1.onclick=function(){showViewer(it)};
+          var b2=document.createElement("button");b2.textContent="删除";b2.style.cssText="padding:7px 16px;border:1px solid #E8C7C7;background:#fff;color:#C0564F;font-size:12px;border-radius:999px;cursor:pointer";
+          b2.onclick=function(){var l=getHistory();var nl=l.filter(function(x){return x.t!==it.t});setHistory(nl);showHistory()};
+          row.appendChild(b1);row.appendChild(b2);
+          item.appendChild(top);item.appendChild(tp);item.appendChild(row);
+          box.appendChild(item);
+        });
+      }
+      openOverlay("历史记录",box,"600px");
+    }
+
+    /* ---------- 展业锦囊 ---------- */
+    var TOOLKIT=[
+      {key:"objection",label:"异议处理",title:"客户异议处理话术",items:[
+        {q:"「保险都是骗人的，买了不给赔」",a:"不反驳、先共情，再摆事实：完全理解，网上确实有没赔的案例，大多卡在两点——投保时没如实告知健康情况，或买的险种和出险的事对不上。所以我在服务里最重视两件事：投保前把健康告知逐条给您讲清楚，理赔时全程协助准备材料。您买不买没关系，先把这两件事弄明白，以后不管找谁买都用得上。"},
+        {q:"「我已经买过保险了」",a:"先肯定，再补位：您的风险意识比我大多数客户都强。不过不少人买的险种比较单一，就像家里装了防盗门但没装烟雾报警器。我可以帮您免费做一次保单整理，看看保障有没有缺口，不买新东西也完全没关系。"},
+        {q:"「太贵了，交不起」",a:"把大数字换成小数字：咱们不说一年一万多，就按一天三十块算，少喝一杯奶茶的钱，换的是万一住院时几十万的底气。而且保额和保障期限都可以调，我按您的预算倒推方案，先保住最要紧的大病和医疗。"},
+        {q:"「我再考虑考虑 / 跟家人商量一下」",a:"给台阶，再约时间：这是大决定，是该商量。我把方案要点整理成一页纸，您转给家人看就行。咱们约周四晚上八分钟电话，我先把家人最可能关心的三个问题替您答了，省得您为难。"},
+        {q:"「收益还没有银行高」",a:"分清功能再讲：储蓄型保险比的不是短期收益，是「确定性」——银行利率会变，写进合同的部分几十年不变。它是家庭资产的压舱石，不是拿去和股票比涨幅的。两类钱，各有各的用处。"},
+        {q:"「我还年轻，不着急」",a:"讲清窗口期：年轻最大的优势是便宜和健康。同样保终身，现在买和十年后再买，总保费差出一大截；而且健康告知现在能通过，不代表十年后还能通过。可以先配一份基础的，把费率锁住。"},
+        {q:"「找你们买，理赔麻烦吗」",a:"给流程、给承诺：报案后需要哪些材料、怎么填、怎么交，我提前给您列好清单，全程协助。小额案件材料齐全后到账很快。您安心养病，跑腿的事交给我。"}
+      ]},
+      {key:"followup",label:"跟进节奏",title:"客户跟进节奏表",items:[
+        {q:"第 1 天 · 初次见面后",a:"当晚发一条总结消息：今天聊的要点一句话回顾 + 一份轻资料（如家庭保障规划指南）。只留印象，不提成交。"},
+        {q:"第 3 天 · 提供价值",a:"发一条与对方情况强相关的信息：孩子刚上学的发教育金思路，父母年纪大的发医疗险怎么选。只给一个观点，不推销。"},
+        {q:"第 7 天 · 邀约面谈",a:"用具体理由邀约：我做了一份您家的保障缺口草图，方便的话这周约半小时给您讲讲，不满意就当聊聊天。"},
+        {q:"第 14 天 · 处理犹豫",a:"如果面谈后还在犹豫，别催单。问一个开放式问题：上次聊完，您和家人主要卡在哪一块？针对卡点给资料，把大决定拆成小决定。"},
+        {q:"第 30 天 · 促成或归档",a:"明确二选一：要么约定下次具体沟通时间，要么转入季度维护名单（节日问候 + 每季一条价值信息）。不消失、不硬磨。"},
+        {q:"成交后 · 转介绍",a:"递送保单时做三件事：讲清保障责任、演示理赔流程、请对方介绍一位「和您一样重视家庭保障的朋友」。递送保单是转介绍成功率最高的时机。"}
+      ]},
+      {key:"pitch",label:"产品讲法",title:"产品一句话讲法（通用框架）",items:[
+        {q:"重疾险 · 收入损失补偿",a:"别一上来讲病种数量，先讲逻辑：大病真正贵的不是医疗费（医疗险能报），是三五年没法工作的收入损失和康复开销。重疾险赔的是一笔可以自由支配的钱，用来顶住房贷和生活费。"},
+        {q:"医疗险 · 医保的补充",a:"一句话：医保是保底的，不少进口药、自费项目报不了，医疗险管的就是这部分。用几百块解决「看病敢用好药」的问题。"},
+        {q:"年金险 · 确定的现金流",a:"不和银行比利率，比确定性：写进合同、按约定领取。适合给未来的自己「发工资」——养老钱的核心不是高收益，是雷打不动。"},
+        {q:"终身寿险 · 责任与传承",a:"讲两个场景：上有老下有小，人不在了责任还在；想给孩子留一笔确定的钱，定向传承。它的核心是杠杆与确定性安排。"},
+        {q:"通用原则",a:"先问需求再讲产品；只讲合同里白纸黑字写的，不讲「应该差不多」；所有利益演示以正式计划书为准，不口头承诺任何收益。"}
+      ]}
+    ];
+    function showToolkit(tab){
+      tab=tab||TOOLKIT[0].key;
+      var box=document.createElement("div");
+      var tabs=document.createElement("div");tabs.style.cssText="display:flex;gap:8px;margin-bottom:16px";
+      TOOLKIT.forEach(function(g){
+        var b=document.createElement("button");b.textContent=g.label;
+        var on=g.key===tab;
+        b.style.cssText="padding:7px 16px;border-radius:999px;font-size:13px;cursor:pointer;border:1px solid rgba(201,168,76,0.4);"+(on?"background:#C9A84C;color:#fff":"background:#fff;color:#8A7020");
+        b.onclick=function(){showToolkit(g.key)};
+        tabs.appendChild(b);
+      });
+      box.appendChild(tabs);
+      var g=TOOLKIT.filter(function(x){return x.key===tab})[0];
+      g.items.forEach(function(it){
+        var item=document.createElement("div");item.style.cssText="background:#fff;border:1px solid rgba(201,168,76,0.25);border-radius:14px;padding:13px 15px;margin-bottom:10px";
+        var q=document.createElement("p");q.style.cssText="margin:0 0 7px;font-size:13.5px;font-weight:600;color:#3D3229";q.textContent=it.q;
+        var a=document.createElement("p");a.style.cssText="margin:0;font-size:13px;line-height:1.85;color:#6B5E4E";a.textContent=it.a;
+        item.appendChild(q);item.appendChild(a);box.appendChild(item);
+      });
+      openOverlay(g.title,box,"600px");
+    }
+
+    /* ---------- 内容人设 ---------- */
+    function showPersona(){
+      var box=document.createElement("div");
+      var cur=getPersona();
+      var tip=document.createElement("p");tip.style.cssText="margin:0 0 14px;font-size:12.5px;color:#A89B8C;line-height:1.8";tip.textContent="选择 AI 生成文案时的表达风格，会自动注入每一次生成请求。";
+      box.appendChild(tip);
+      Object.keys(PERSONAS).forEach(function(k){
+        var p=PERSONAS[k];
+        var on=k===cur;
+        var item=document.createElement("div");item.style.cssText="background:#fff;border:2px solid "+(on?"#C9A84C":"rgba(201,168,76,0.25)")+";border-radius:14px;padding:13px 15px;margin-bottom:10px;cursor:pointer";
+        var nm=document.createElement("p");nm.style.cssText="margin:0 0 4px;font-size:14px;font-weight:600;color:"+(on?"#8A7020":"#3D3229");nm.textContent=p.name+(on?"（当前）":"");
+        var ds=document.createElement("p");ds.style.cssText="margin:0;font-size:12.5px;line-height:1.8;color:#6B5E4E";ds.textContent=p.desc;
+        item.appendChild(nm);item.appendChild(ds);
+        item.onclick=function(){try{localStorage.setItem("wb_persona",k)}catch(e){};toast("人设已切换为「"+p.name+"」，下次生成生效");showPersona()};
+        box.appendChild(item);
+      });
+      openOverlay("内容人设",box,"520px");
+    }
+
+    /* ---------- 法律信息 ---------- */
+    var LEGAL={
+      disclaimer:"1、本站为独立开发的 AI 工具演示站点，非中国太平保险集团有限责任公司官方网站，与太平保险无任何隶属、合作或授权关系。\n2、本站所有 AI 生成内容（文案、课件大纲、Slogan 等）均由算法自动产生，仅供个人学习与内部参考，不构成任何形式的投保建议、投资建议或要约。\n3、任何保险产品的保险责任、除外责任、费率及利益演示，均以保险公司正式发布的保险合同条款、产品说明书及正式计划书为准。\n4、使用者对外发布 AI 生成内容前，应自行复核内容的真实性与合规性，确保符合国家法律法规及监管规定，由此产生的对外责任由发布者自行承担。",
+      privacy:"1、信息收集：本站不设账号系统，不收集、不上传您的任何个人身份信息。生成的文案、历史记录等内容仅保存在您本机浏览器的 localStorage 中，清除浏览器数据或手动删除即可彻底移除。\n2、第三方接口：您使用 AI 生成功能时，输入的主题文字会通过 HTTPS 直接送往大模型服务商（DeepSeek）接口用于内容生成，本站不存储、不转发该数据。\n3、照片处理：水印功能中上传的照片仅在本机浏览器内使用 Canvas 处理，不会上传到任何服务器。\n4、联系方式：如对本政策有任何疑问，请通过页面底部提供的渠道与我们联系。"
+    };
+    function showLegal(key,title){
+      var box=document.createElement("div");
+      var pre=document.createElement("pre");pre.style.cssText="white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:2;color:#5C5041;background:#fff;border:1px solid rgba(201,168,76,0.2);border-radius:14px;padding:16px;margin:0;font-family:inherit";
+      pre.textContent=LEGAL[key];
+      box.appendChild(pre);
+      openOverlay(title,box,"600px");
+    }
+    function injectFooter(){
+      var f=document.querySelector("footer");
+      if(!f){setTimeout(injectFooter,800);return}
+      if(f.querySelector(".wb-legal"))return;
+      var div=document.createElement("div");div.className="wb-legal";
+      div.style.cssText="max-width:680px;margin:30px auto 0;padding-top:20px;border-top:1px solid rgba(61,50,41,0.12);font-size:11.5px;line-height:2;color:#A89B8C;text-align:center";
+      div.innerHTML='© 2026 太平慧管家 · AI 智能事业伙伴（独立开发者演示站点，非中国太平保险集团官方网站，与太平保险无任何隶属或授权关系）<br/>'
+        +'<a href="javascript:void(0)" id="wb-lg1" style="color:#8A7020;text-decoration:underline">免责声明</a>　·　'
+        +'<a href="javascript:void(0)" id="wb-lg2" style="color:#8A7020;text-decoration:underline">隐私政策</a>　·　'
+        +'AI 生成内容仅供参考，具体保险责任以保险合同条款为准';
+      f.appendChild(div);
+      div.querySelector("#wb-lg1").onclick=function(){showLegal("disclaimer","免责声明")};
+      div.querySelector("#wb-lg2").onclick=function(){showLegal("privacy","隐私政策")};
+    }
+    var mo=new MutationObserver(function(){if(document.querySelector("footer")){injectFooter();mo.disconnect()}});
+    mo.observe(document.documentElement,{childList:true,subtree:true});
+    setTimeout(injectFooter,5000);
+
+    /* ---------- 悬浮工具条 ---------- */
+    var ICONS={
+      history:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      toolkit:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>',
+      persona:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+    };
+    function buildFab(){
+      if(document.getElementById("wb-fab"))return;
+      var fab=document.createElement("div");fab.id="wb-fab";
+      [["历史","保存的生成记录",showHistory,ICONS.history],
+       ["锦囊","异议处理 · 跟进节奏 · 产品讲法",showToolkit,ICONS.toolkit],
+       ["人设","AI 文案表达风格",showPersona,ICONS.persona]].forEach(function(cfg){
+        var b=document.createElement("button");b.title=cfg[1];
+        b.innerHTML=cfg[3]+"<span>"+cfg[0]+"</span>";
+        b.onclick=function(){cfg[2]()};
+        fab.appendChild(b);
+      });
+      document.body.appendChild(fab);
+    }
+    buildFab();
+    })();
+    </script>
 </body></html>
